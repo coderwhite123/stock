@@ -1,5 +1,19 @@
 const MEMPOOL_API = 'https://mempool.space/api';
+const COINGECKO_API = 'https://api.coingecko.com/api/v3';
 const MIN_CONFIRMATIONS = 1;
+
+export interface CryptoMarketPrice {
+  id: string;
+  symbol: string;
+  name: string;
+  priceUsd: number;
+  change24h: number;
+}
+
+export interface CryptoHistoryPoint {
+  timestamp: number;
+  priceUsd: number;
+}
 
 export interface AddressTx {
   txid: string;
@@ -45,6 +59,53 @@ export async function getBtcPriceUsd(): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/**
+ * Get a small market snapshot for the signed-in dashboard ticker.
+ */
+export async function getCryptoMarketPrices(): Promise<CryptoMarketPrice[]> {
+  const assets = [
+    { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin' },
+    { id: 'ethereum', symbol: 'ETH', name: 'Ethereum' },
+    { id: 'solana', symbol: 'SOL', name: 'Solana' },
+    { id: 'ripple', symbol: 'XRP', name: 'XRP' },
+  ];
+
+  try {
+    const ids = assets.map((asset) => asset.id).join(',');
+    const res = await fetch(
+      `${COINGECKO_API}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
+      { next: { revalidate: 60 } }
+    );
+    if (!res.ok) return [];
+
+    const data = await res.json() as Record<string, { usd?: number; usd_24h_change?: number }>;
+    return assets
+      .filter((asset) => typeof data[asset.id]?.usd === 'number')
+      .map((asset) => ({
+        ...asset,
+        priceUsd: data[asset.id].usd ?? 0,
+        change24h: data[asset.id].usd_24h_change ?? 0,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getCryptoMarketHistory(): Promise<Record<string, CryptoHistoryPoint[]>> {
+  const assets = ['bitcoin', 'ethereum', 'solana', 'ripple'];
+  const entries = await Promise.all(assets.map(async (asset) => {
+    try {
+      const res = await fetch(`${COINGECKO_API}/coins/${asset}/market_chart?vs_currency=usd&days=7&interval=hourly`, { next: { revalidate: 300 } });
+      if (!res.ok) return [asset, []] as const;
+      const data = await res.json() as { prices?: [number, number][] };
+      return [asset, (data.prices ?? []).map(([timestamp, priceUsd]) => ({ timestamp, priceUsd }))] as const;
+    } catch {
+      return [asset, []] as const;
+    }
+  }));
+  return Object.fromEntries(entries);
 }
 
 /**

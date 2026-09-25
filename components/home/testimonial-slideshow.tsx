@@ -7,9 +7,12 @@ const ROWS = 3;
 const AUTO_SCROLL_MS = 3500;
 const SCROLL_PIXELS = 340;
 
-/** Distinct avatar per seed (DiceBear avataaars – no repeats) */
+/** Stable public portrait selected from the testimonial seed. */
 function getAvatarUrl(seed: string): string {
-  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}&size=128`;
+  const numericSeed = Number.parseInt(seed, 10) || 1;
+  const gender = numericSeed % 2 === 0 ? 'women' : 'men';
+  const portrait = 20 + (numericSeed % 60);
+  return `https://randomuser.me/api/portraits/${gender}/${portrait}.jpg`;
 }
 
 function getRows(): typeof testimonials[] {
@@ -46,9 +49,6 @@ export function TestimonialSlideshow() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <p className="mb-6 text-center text-sm text-slate-500 dark:text-slate-400">
-        Reviews scroll automatically. You can also drag or swipe to browse.
-      </p>
       <div className="space-y-8 md:space-y-10">
         {rows.map((rowTestimonials, rowIndex) => (
           <div key={rowIndex} className="relative">
@@ -69,7 +69,7 @@ export function TestimonialSlideshow() {
                   <div className="flex items-center gap-4">
                     <img
                       src={getAvatarUrl(t.avatarSeed)}
-                      alt=""
+                      alt={`${t.name} profile photo`}
                       width={56}
                       height={56}
                       className="h-14 w-14 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-800"
